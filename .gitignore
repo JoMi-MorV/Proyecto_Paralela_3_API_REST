@@ -35,14 +35,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Data and outputs (optional, depending on your workflow)
-# Uncomment if you don't want to track generated files
-# data/*.csv
-# data/*.json
-# *.csv
-# *.parquet
-# *.feather
-
 # Packaging / build outputs
 build/
 dist/
