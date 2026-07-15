@@ -1,0 +1,49 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.*
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and outputs (optional, depending on your workflow)
+# Uncomment if you don't want to track generated files
+# data/*.csv
+# data/*.json
+# *.csv
+# *.parquet
+# *.feather
+
+# Packaging / build outputs
+build/
+dist/
+*.egg-info/
