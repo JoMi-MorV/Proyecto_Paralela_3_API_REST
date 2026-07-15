@@ -52,7 +52,7 @@ def startup_event():
     
     global sales_data
     csv_path = download_csv()
-    sales_data = load_data()
+    sales_data = load_data(csv_path)
 
     try:
         report = validate_data(sales_data)
