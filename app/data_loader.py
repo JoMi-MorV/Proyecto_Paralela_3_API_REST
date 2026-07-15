@@ -1,26 +1,25 @@
 """
 data_loader.py
 
-Loads the Cruz Morada sales CSV into memory at application startup.
+Carga el CSV de ventas de Cruz Morada en la memoria al iniciar la aplicación.
 
-IMPORTANT: this CSV uses a nonstandard double-encoded format. The true
-delimiter is ';', with individual fields wrapped in doubled quotes
-(""value""). Because at least one PRODUCTO value contains a literal,
-unescaped comma, the file was corrupted when originally saved/exported
-as comma-delimited CSV -- every row was incorrectly split/quoted at
-that comma, and two stray trailing commas were appended per line.
+IMPORTANTE: este CSV utiliza un formato de doble codificación no estándar.
+El delimitador real es ';', con los campos individuales envueltos en comillas dobles
+(""valor""). Debido a que al menos un valor de PRODUCTO contiene una coma literal no
+escapada, el archivo se corrompió al guardarse/exportarse originalmente como un CSV
+delimitado por comas; cada fila se dividió/entrecomilló incorrectamente en esa coma
+y se añadieron dos comas residuales al final de cada línea.
 
-reconstruct_row() reverses this: it re-joins the incorrectly-split
-outer pieces (restoring the comma that belongs inside the real data),
-then splits on the *real* delimiter ';' and strips the leftover quote
-characters.
+reconstruct_row() revierte esto: vuelve a unir las piezas divididas incorrectamente
+(restaurando la coma que pertenece al interior de los datos reales), luego divide
+según el delimitador real ';' y elimina los caracteres de comillas sobrantes.
 
-Given the file has 3M+ rows, this reconstruction work is spread across
-a thread pool (up to NUM_THREADS workers) rather than processed
-row-by-row in a single loop, per the assignment's parallel-processing
-requirement. No cleaned/modified copy of the CSV is written to disk --
-everything happens in memory before being loaded into one DataFrame,
-since writing a second 3M-row file would just add unnecessary I/O time.
+Dado que el archivo tiene más de 3 millones de filas, este trabajo de reconstrucción
+se distribuye en un grupo de hilos (hasta NUM_THREADS trabajadores) en lugar de
+procesarse fila por fila en un solo bucle, conforme al requisito de procesamiento
+en paralelo de la tarea. No se escribe ninguna copia limpia o modificada del CSV
+en el disco; todo sucede en la memoria antes de ser cargado en un único DataFrame,
+ya que escribir un segundo archivo de 3 millones de filas solo añadiría un tiempo de E/S innecesario.
 """
 
 import csv
@@ -35,8 +34,9 @@ CSV_PATH = "data/ventas_completas.csv"
 NUM_THREADS = 32
 CHUNK_SIZE = 50_000  # rows handed to each thread per batch
 
-# Column order as they actually appear in the raw file (after the real
-# ';' delimiter is restored).
+
+# Orden de las columnas tal y como aparecen realmente en el archivo 
+# original (después de restaurar el delimitador ';' real).
 RAW_COLUMNS = [
     "FECHA", "CANAL", "SKU", "PRODUCTO", "UNIDADES",
     "PORCENTAJE DESCUENTO", "MONTO APLICADO", "BOLETA", "LOCAL",
@@ -44,9 +44,10 @@ RAW_COLUMNS = [
     "FECHA NACIMIENTO", "GENERO",
 ]
 
-# Renames a couple of raw column names to the canonical names already
-# used throughout validator.py / stats.py, so those files don't need
-# to change.
+
+# Cambia el nombre de un par de columnas originales a los nombres
+# canónicos que ya se utilizan en todo validator.py / stats.py,
+# para que esos archivos no necesiten ser modificados.
 RENAME_MAP = {
     "FECHA NACIMIENTO": "FECHA_NACIMIENTO",
     "GENERO": "GÉNERO",
@@ -58,32 +59,32 @@ NUMERIC_FLOAT_COLUMNS = ["PORCENTAJE DESCUENTO", "MONTO APLICADO"]
 
 def _reconstruct_row(outer_row: list) -> list | None:
     """
-    Reverses the double-encoding for a single row.
-    Returns None if the row is empty/unusable after cleanup.
+    Invierte la doble codificación de una sola fila.
+    Devuelve None si la fila está vacía o no es utilizable después de la limpieza.
     """
-    # Drop the stray empty trailing fields (from the extra ',,' per line)
+    # Elimina los campos vacíos residuales al final (provenientes de las comas extra ',,' por línea).
     while outer_row and outer_row[-1] == "":
         outer_row.pop()
 
     if not outer_row:
         return None
 
-    # Re-join with ',' to restore any comma that belongs inside the data
-    # (this undoes the incorrect outer split caused by the PRODUCTO comma)
+    # Vuelve a unir con ',' para restaurar cualquier coma que pertenezca al interior de los datos
+    # (esto deshace la división externa incorrecta causada por la coma en PRODUCTO)
     joined = ",".join(outer_row)
 
-    # Now split on the REAL delimiter and strip leftover quote characters
+    # Ahora divide usando el delimitador REAL y elimina los caracteres de comillas sobrantes
     fields = [f.strip().strip('"') for f in joined.split(";")]
     return fields
 
 
 def _reconstruct_chunk(rows: list) -> list:
     """
-    Reconstructs a batch of raw rows. This is the function each thread
-    runs — CPU-light string work, split across NUM_THREADS workers.
-    Rows that don't reconstruct to the expected column count are
-    dropped (logged as skipped by the caller) rather than corrupting
-    the DataFrame with misaligned columns.
+    Reconstruye un lote de filas crudas. Esta es la función que ejecuta cada hilo
+    — trabajo ligero de cadenas de caracteres, dividido entre los trabajadores NUM_THREADS.
+    Las filas que no se reconstruyen al recuento de columnas esperado son
+    eliminadas (registradas como omitidas por el llamador) en lugar de corromper
+    el DataFrame con columnas desalineadas.
     """
     result = []
     for row in rows:
@@ -95,12 +96,12 @@ def _reconstruct_chunk(rows: list) -> list:
 
 def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
     """
-    Reads the raw CSV, reconstructs every row's true field structure
-    in parallel using a thread pool, and returns a clean DataFrame.
+    Lee el CSV original, reconstruye la verdadera estructura de campos de cada
+    fila en paralelo utilizando un grupo de hilos, y devuelve un DataFrame limpio.
     """
     with open(csv_path, encoding="utf-8-sig", newline="") as f:
         reader = csv.reader(f, delimiter=",", quotechar='"')
-        next(reader)  # skip the raw (also double-encoded) header row
+        next(reader)  # ignora la fila de encabezado original (que también tiene doble codificación)
         raw_rows = list(reader)
 
     total_rows = len(raw_rows)
@@ -109,7 +110,7 @@ def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
         f"Reconstruyendo en paralelo con {NUM_THREADS} hilos..."
     )
 
-    # Split the raw rows into batches, one batch submitted per thread task
+    # Divide las filas originales en lotes, enviando un lote por cada tarea de hilo.
     batches = [
         raw_rows[i:i + CHUNK_SIZE]
         for i in range(0, total_rows, CHUNK_SIZE)
@@ -128,9 +129,9 @@ def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
     df = pd.DataFrame(reconstructed_rows, columns=RAW_COLUMNS)
     df = df.rename(columns=RENAME_MAP)
 
-    # Type conversions -- errors="coerce" turns unparseable individual
-    # values into NaT/NaN instead of crashing the whole load; those get
-    # caught as warnings by validate_data() afterward.
+    # Conversiones de tipo: errors="coerce" convierte los valores individuales
+    # que no se pueden analizar en NaT/NaN en lugar de hacer que toda la carga falle;
+    # estos son detectados posteriormente como advertencias por validate_data().
     df["FECHA"] = pd.to_datetime(df["FECHA"], errors="coerce")
     df["FECHA_NACIMIENTO"] = pd.to_datetime(df["FECHA_NACIMIENTO"], errors="coerce")
 

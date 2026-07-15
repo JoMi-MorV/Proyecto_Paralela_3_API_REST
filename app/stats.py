@@ -1,22 +1,22 @@
 """
 stats.py
 
-Handles two responsibilities for the Cruz Morada sales statistics API:
-1. apply_filters()  -> filters the sales DataFrame based on user-supplied criteria
-2. compute_stats()  -> computes the required statistical summary on the filtered data
+Maneja dos responsabilidades para la API de estadísticas de ventas de Cruz Morada:
+1. apply_filters()  -> filtra el DataFrame de ventas según criterios del usuario
+2. compute_stats()  -> calcula el resumen estadístico requerido sobre los datos filtrados
 
-Both GET and POST endpoints in main.py call these same two functions,
-so filter logic and calculation logic only exist in one place.
+Tanto los endpoints GET como POST en main.py llaman a estas dos funciones,
+por lo que la lógica de filtrado y de cálculo existe en un solo lugar.
 """
 
 from datetime import datetime
 import pandas as pd
 
 
-# Maps every GENERO value the spec lists to its numeric code in the CSV.
-# "No especificado" and "Otro" are included explicitly rather than being
-# treated as "match nothing" -- update these two codes if your real CSV
-# uses different numbers for them.
+# Mapea cada valor de GENERO listado en la especificación a su código numérico en el CSV.
+# "No especificado" y "Otro" se incluyen explícitamente en lugar de
+# tratarlos como "no coincidir con nada" — actualice estos dos códigos
+# si su CSV real usa números distintos para ellos.
 GENERO_MAP = {
     "No especificado": 0,
     "Masculino": 1,
@@ -29,12 +29,12 @@ VALID_CANALES = {"POS", "WEB", "APP", "CCT", "APR", "WPR"}
 
 def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
     """
-    Applies zero or more filters to the sales DataFrame.
+    Aplica cero o más filtros al DataFrame de ventas.
 
-    filtros: dict like {"GENERO": "Femenino", "CANAL": "POS"}
-    Raises ValueError with a human-readable message if any filter
-    value is invalid — the caller (main.py) converts this into the
-    required 400 Bad Request error format.
+    filtros: dict como {"GENERO": "Femenino", "CANAL": "POS"}
+    Lanza ValueError con un mensaje legible si algún valor de filtro
+    no es válido — el llamador (main.py) convierte esto en el
+    formato de error 400 Bad Request requerido.
     """
     result = df
 
@@ -51,9 +51,9 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
         except (ValueError, TypeError):
             raise ValueError(f"El valor '{valor}' no es un número entero válido para EDAD")
 
-        # Correct age calculation: subtracts 1 from the naive year
-        # difference if the birthday hasn't occurred yet this year,
-        # rather than a rough days // 365 approximation.
+        # Cálculo correcto de la edad: resta 1 de la diferencia de años naiva
+        # si el cumpleaños aún no ocurrió este año, en lugar de una aproximación
+        # grosera con days // 365.
         hoy = pd.Timestamp.now()
         nacimiento = result["FECHA_NACIMIENTO"]
 
@@ -110,11 +110,11 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
 
 def compute_stats(df: pd.DataFrame, amount_column: str = "MONTO APLICADO") -> dict:
     """
-    Computes the required statistical summary:
-    suma, conteo, promedio, minimo, maximo, mediana, desviacion_estandar
+    Calcula el resumen estadístico requerido:
+    suma, conteo, promedio, mínimo, máximo, mediana, desviación estándar
 
-    Returns all-zero stats if the filtered DataFrame is empty, rather
-    than raising an error (empty results are valid, just uninteresting).
+    Devuelve estadísticas en cero si el DataFrame filtrado está vacío,
+    en lugar de lanzar un error (resultados vacíos son válidos, solo poco interesantes).
     """
     if len(df) == 0:
         return {

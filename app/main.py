@@ -3,10 +3,10 @@ main.py
 
 Cruz Morada - Estadísticas de Ventas API
 
-Entry point for the FastAPI application. Loads and validates the sales
-CSV once at startup (unattended, no manual step), then serves GET/POST
-requests against /v1/estadisticas/ventas using the shared filtering
-and statistics logic in stats.py, with validation from validator.py.
+Punto de entrada para la aplicación FastAPI. Carga y valida el CSV de ventas
+una sola vez al iniciar (sin intervención manual), y luego atiende solicitudes
+GET/POST en /v1/estadisticas/ventas usando la lógica compartida de filtrado
+y estadísticas en stats.py, con validación provista por validator.py.
 """
 
 import logging
@@ -28,7 +28,7 @@ app = FastAPI(
     docs_url="/docs",
 )
 
-# Populated once at startup, then read (never modified) by every request.
+# Poblado una vez al iniciar, luego leído (nunca modificado) por cada solicitud.
 sales_data = None
 
 
@@ -41,11 +41,11 @@ def root() -> RedirectResponse:
 @app.on_event("startup")
 def startup_event():
     """
-    Runs automatically when the server starts.
-    1. Loads the CSV (streamed in chunks — see data_loader.py)
-    2. Validates its structure/types (see validator.py)
-    Satisfies the "unattended loading" requirement: no manual step
-    is needed before the API is ready to serve requests.
+    Se ejecuta automáticamente cuando el servidor inicia.
+    1. Carga el CSV (en streaming por chunks — ver data_loader.py)
+    2. Valida su estructura/tipos (ver validator.py)
+    Cumple el requisito de "carga desatendida": no se necesita ningún paso manual
+    antes de que la API esté lista para atender solicitudes.
     """
     
     
@@ -57,9 +57,9 @@ def startup_event():
     try:
         report = validate_data(sales_data)
     except DataValidationError as e:
-        # A required column is missing entirely — the API cannot
-        # compute correct statistics, so fail fast and loud instead
-        # of silently serving wrong numbers.
+        # Falta por completo una columna obligatoria — la API no puede
+        # calcular estadísticas correctas, por eso falla de forma rápida y visible
+        # en vez de servir silenciosamente números incorrectos.
         logger.error(f"Validación de datos fallida: {e}")
         raise SystemExit(f"No se pudo iniciar la API: {e}")
 
@@ -81,8 +81,8 @@ def get_estadisticas(
     FECHA_HASTA: str = None,
 ):
     """
-    Returns sales statistics filtered by optional query parameters.
-    Example: /v1/estadisticas/ventas?CANAL=POS&GENERO=Femenino
+    Devuelve estadísticas de ventas filtradas por parámetros de consulta opcionales.
+    Ejemplo: /v1/estadisticas/ventas?CANAL=POS&GENERO=Femenino
     """
     filtros = {
         k: v
@@ -119,8 +119,8 @@ def get_estadisticas(
 @app.post("/v1/estadisticas/ventas")
 def post_estadisticas(request: Request, body: dict):
     """
-    Returns sales statistics filtered by a JSON body of one or more
-    "consultas". Example body:
+    Devuelve estadísticas de ventas filtradas por un cuerpo JSON con una o más
+    "consultas". Ejemplo de cuerpo:
     {
       "consultas": [
         {"consulta": "GENERO", "valor": "Femenino"},

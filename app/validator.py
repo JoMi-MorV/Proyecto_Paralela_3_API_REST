@@ -1,15 +1,17 @@
 """
 validator.py
 
-Verifies that the loaded sales DataFrame has the expected columns,
-correct data types, and no structurally broken rows before the API
-starts serving requests. Runs once at startup, right after load_data().
+Verifica que el DataFrame de ventas cargado tenga las columnas esperadas,
+los tipos de datos correctos y que no existan filas estructuralmente rotas
+antes de que la API comience a atender solicitudes. Se ejecuta una vez al
+iniciar, inmediatamente después de load_data().
 """
 
 import pandas as pd
 
-# Columns required per the assignment's CSV spec, and the pandas dtype
-# category each should belong to after loading.
+# Columnas requeridas según la especificación del CSV del ejercicio,
+# y la categoría de tipo de pandas a la que cada una debe pertenecer
+# después de la carga.
 EXPECTED_COLUMNS = {
     "FECHA": "datetime",
     "CANAL": "string",
@@ -30,40 +32,41 @@ EXPECTED_COLUMNS = {
 
 
 class DataValidationError(Exception):
-    """Raised when the loaded CSV fails structural or type validation."""
+    """Se lanza cuando el CSV cargado falla la validación estructural o de tipos."""
     pass
 
 
 def validate_data(df: pd.DataFrame) -> dict:
     """
-    Checks the DataFrame against EXPECTED_COLUMNS for:
-    - missing columns
-    - unexpected extra columns (warning only, not fatal)
-    - correct data types per column
-    - basic row-level sanity (no fully-empty rows, no negative UNIDADES, etc.)
+    Comprueba el DataFrame contra EXPECTED_COLUMNS para:
+    - columnas faltantes
+    - columnas extra inesperadas (solo advertencia, no fatal)
+    - tipos de datos correctos por columna
+    - comprobaciones básicas a nivel de fila (sin filas totalmente vacías,
+      sin UNIDADES negativas, etc.)
 
-    Returns a report dict with warnings. Raises DataValidationError if
-    the data is broken badly enough that the API cannot serve correct
-    statistics (e.g. a required column is missing entirely).
+    Devuelve un diccionario de reporte con advertencias. Lanza DataValidationError
+    si los datos están lo suficientemente rotos como para que la API no pueda
+    servir estadísticas correctas (por ejemplo, falta por completo una columna requerida).
     """
     report = {"errors": [], "warnings": [], "rows_checked": len(df)}
 
-    # 1. Check every required column exists
+    # 1. Verificar que existe cada columna requerida
     missing = [col for col in EXPECTED_COLUMNS if col not in df.columns]
     if missing:
         report["errors"].append(f"Columnas faltantes: {missing}")
 
-    # 2. Warn about unexpected extra columns (not fatal, just noted)
+    # 2. Avisar sobre columnas extra inesperadas (no es fatal, solo se registra)
     extra = [col for col in df.columns if col not in EXPECTED_COLUMNS]
     if extra:
         report["warnings"].append(f"Columnas no esperadas encontradas: {extra}")
 
-    # If required columns are missing, we can't safely check types/rows —
-    # stop here and raise immediately.
+    # Si faltan columnas requeridas, no podemos comprobar tipos/filas de forma segura —
+    # detenerse aquí y lanzar inmediatamente.
     if report["errors"]:
         raise DataValidationError("; ".join(report["errors"]))
 
-    # 3. Type checks per column
+    # 3. Comprobaciones de tipo por columna
     for col, expected_type in EXPECTED_COLUMNS.items():
         series = df[col]
 
@@ -88,7 +91,7 @@ def validate_data(df: pd.DataFrame) -> dict:
                     f"{bad} fechas inválidas o no parseables en columna '{col}'"
                 )
 
-    # 4. Row-level sanity checks
+    # 4. Comprobaciones de saneamiento a nivel de fila
     fully_empty_rows = df.isna().all(axis=1).sum()
     if fully_empty_rows > 0:
         report["warnings"].append(f"{fully_empty_rows} filas completamente vacías")
