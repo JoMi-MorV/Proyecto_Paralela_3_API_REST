@@ -10,11 +10,16 @@ filelock==3.29.7
 gdown==6.1.0
 h11==0.16.0
 idna==3.18
+iniconfig==2.3.0
 numpy==2.5.1
+packaging==26.2
 pandas==3.0.3
+pluggy==1.6.0
 pydantic==2.13.4
 pydantic_core==2.46.4
+Pygments==2.20.0
 PySocks==1.7.1
+pytest==9.1.1
 python-dateutil==2.9.0.post0
 python-multipart==0.0.32
 requests==2.34.2
