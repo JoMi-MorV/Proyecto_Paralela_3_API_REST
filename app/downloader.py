@@ -13,8 +13,6 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-import gdown
-
 logger = logging.getLogger("uvicorn.error")
 
 # Extraído del enlace para compartir
@@ -92,6 +90,13 @@ def download_csv(dest_path: str = DEST_PATH, force: bool = False) -> str:
             return str(existing)
 
     logger.info("Descargando archivo desde Google Drive...")
+
+    try:
+        import gdown
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "No se encontró el módulo 'gdown'. Instala la dependencia antes de descargar el CSV."
+        ) from exc
 
     url = f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID}"
     archive_path = Path(

@@ -2,6 +2,11 @@
 test_api.py
 
 Pruebas de integración para los endpoints GET y POST usando TestClient.
+Cubre validaciones de filtro y asegura que la API responda 400 para casos como:
+- consultas inválidas
+- edad fuera de rango
+- local inexistente
+- fechas fuera del rango permitido o con orden incorrecto
 """
 
 import pandas as pd
@@ -91,6 +96,49 @@ def test_get_valor_invalido_retorna_400(client):
     assert "CANAL" in response.json()["detail"]
 
 
+def test_get_fecha_desde_fuera_rango_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?FECHA_DESDE=1899-12-31")
+    assert response.status_code == 400
+    assert "FECHA_DESDE" in response.json()["detail"]
+
+
+def test_get_fecha_hasta_futura_retorna_400(client):
+    future = (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    response = client.get(f"/v1/estadisticas/ventas?FECHA_HASTA={future}")
+    assert response.status_code == 400
+    assert "FECHA_HASTA" in response.json()["detail"]
+
+
+def test_get_fecha_desde_mayor_fecha_hasta_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?FECHA_DESDE=2026-01-04&FECHA_HASTA=2026-01-01")
+    assert response.status_code == 400
+    assert "FECHA_DESDE" in response.json()["detail"]
+
+
+def test_get_local_no_exist_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?LOCAL=99")
+    assert response.status_code == 400
+    assert "LOCAL existente" in response.json()["detail"]
+
+
+def test_get_codigo_producto_no_exist_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?CODIGO_PRODUCTO=999")
+    assert response.status_code == 400
+    assert "CODIGO_PRODUCTO existente" in response.json()["detail"]
+
+
+def test_get_cliente_no_exist_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?ID_PERSONA=00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 400
+    assert "cliente existente" in response.json()["detail"]
+
+
+def test_get_edad_fuera_rango_retorna_400(client):
+    response = client.get("/v1/estadisticas/ventas?EDAD=100000")
+    assert response.status_code == 400
+    assert "EDAD" in response.json()["detail"]
+
+
 def test_post_filtros_validos(client):
     response = client.post(
         "/v1/estadisticas/ventas",
@@ -123,6 +171,42 @@ def test_post_consulta_invalida_retorna_400(client):
     data = response.json()
     assert "FOO" in data["detail"]
     assert data["errorCode"] == "VF"
+
+
+def test_post_edad_fuera_rango_retorna_400(client):
+    response = client.post(
+        "/v1/estadisticas/ventas",
+        json={"consultas": [{"consulta": "EDAD", "valor": "100000"}]},
+    )
+    assert response.status_code == 400
+    assert "EDAD" in response.json()["detail"]
+
+
+def test_post_local_no_exist_retorna_400(client):
+    response = client.post(
+        "/v1/estadisticas/ventas",
+        json={"consultas": [{"consulta": "LOCAL", "valor": "99"}]},
+    )
+    assert response.status_code == 400
+    assert "LOCAL existente" in response.json()["detail"]
+
+
+def test_post_codigo_producto_no_exist_retorna_400(client):
+    response = client.post(
+        "/v1/estadisticas/ventas",
+        json={"consultas": [{"consulta": "CODIGO_PRODUCTO", "valor": "999"}]},
+    )
+    assert response.status_code == 400
+    assert "CODIGO_PRODUCTO existente" in response.json()["detail"]
+
+
+def test_post_cliente_no_exist_retorna_400(client):
+    response = client.post(
+        "/v1/estadisticas/ventas",
+        json={"consultas": [{"consulta": "ID_PERSONA", "valor": "00000000-0000-0000-0000-000000000000"}]},
+    )
+    assert response.status_code == 400
+    assert "cliente existente" in response.json()["detail"]
 
 
 def test_post_sin_clave_consultas_retorna_400(client):

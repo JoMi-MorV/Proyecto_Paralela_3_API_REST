@@ -2,8 +2,10 @@
 test_stats.py
 
 Pruebas unitarias para la lógica de filtrado y estadísticas en app/stats.py.
-Usa DataFrames pequeños construidos a mano en lugar del CSV real, por lo que
-estas pruebas se ejecutan al instante y no dependen de que el archivo de datos exista.
+Incluye validación de filtros nuevos y existentes, como:
+- EDAD debe ser entero y estar entre 10 y 120.
+- LOCAL debe existir en el dataset.
+- FECHA_DESDE/FECHA_HASTA deben estar en el rango 1906-01-01..hoy y ser ordenadas.
 """
 
 import pandas as pd
@@ -123,6 +125,11 @@ def test_filter_by_codigo_producto(sample_df):
     assert all(filtered["SKU"] == 100)
 
 
+def test_filter_codigo_producto_no_exist_raises_value_error(sample_df):
+    with pytest.raises(ValueError, match="CODIGO_PRODUCTO existente"):
+        apply_filters(sample_df, {"CODIGO_PRODUCTO": "999"})
+
+
 def test_filter_by_genero_femenino(sample_df):
     filtered = apply_filters(sample_df, {"GENERO": "Femenino"})
     assert len(filtered) == 2
@@ -145,10 +152,36 @@ def test_filter_invalid_edad_raises_value_error(sample_df):
         apply_filters(sample_df, {"EDAD": "not_a_number"})
 
 
+def test_filter_edad_fuera_rango_raises_value_error(sample_df):
+    with pytest.raises(ValueError, match="EDAD"):
+        apply_filters(sample_df, {"EDAD": "100000"})
+
+
+def test_filter_fecha_desde_fuera_rango_raises_value_error(sample_df):
+    with pytest.raises(ValueError, match="FECHA_DESDE"):
+        apply_filters(sample_df, {"FECHA_DESDE": "1899-12-31"})
+
+
+def test_filter_fecha_hasta_futura_raises_value_error(sample_df):
+    future = (pd.Timestamp.now() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+    with pytest.raises(ValueError, match="FECHA_HASTA"):
+        apply_filters(sample_df, {"FECHA_HASTA": future})
+
+
+def test_filter_fecha_desde_mayor_a_fecha_hasta_rechaza(sample_df):
+    with pytest.raises(ValueError, match="FECHA_DESDE"):
+        apply_filters(sample_df, {"FECHA_DESDE": "2026-01-04", "FECHA_HASTA": "2026-01-01"})
+
+
 def test_filter_by_id_persona(sample_df):
     filtered = apply_filters(sample_df, {"ID_PERSONA": "7c44465b-9e50-3914-923f-9b4f6fbee508"})
     assert len(filtered) == 2
     assert all(filtered["CODIGO CLIENTE"] == "7c44465b-9e50-3914-923f-9b4f6fbee508")
+
+
+def test_filter_id_persona_no_exist_raises_value_error(sample_df):
+    with pytest.raises(ValueError, match="cliente existente"):
+        apply_filters(sample_df, {"ID_PERSONA": "00000000-0000-0000-0000-000000000000"})
 
 
 def test_filter_by_fecha_desde(sample_df):
@@ -164,6 +197,11 @@ def test_filter_by_fecha_hasta(sample_df):
 def test_filter_invalid_local_raises_value_error(sample_df):
     with pytest.raises(ValueError, match="ID de tienda"):
         apply_filters(sample_df, {"LOCAL": "not_a_number"})
+
+
+def test_filter_local_no_exist_raises_value_error(sample_df):
+    with pytest.raises(ValueError, match="LOCAL existente"):
+        apply_filters(sample_df, {"LOCAL": "99"})
 
 
 # ---------- integración: filtro + estadísticas ----------

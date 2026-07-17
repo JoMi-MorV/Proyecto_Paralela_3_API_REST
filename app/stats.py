@@ -1,10 +1,20 @@
 """
 stats.py
 
-Maneja el filtrado, cálculo y almacenamiento de estadísticas de ventas:
-1. apply_filters()   -> filtra el DataFrame según criterios del usuario
-2. compute_stats()   -> calcula el resumen estadístico requerido
-3. StatsStore        -> precomputa métricas globales para GET y cachea consultas filtradas
+Maneja el filtrado, validación y cálculo de estadísticas de ventas.
+
+Las funciones de filtro implementan validaciones de valor específicas para cada
+filtro admitido:
+- GENERO: debe ser uno de los valores permitidos por GENERO_MAP.
+- EDAD: debe ser entero y estar entre 10 y 120.
+- CANAL: debe ser uno de los canales válidos en VALID_CANALES.
+- CODIGO_PRODUCTO: debe ser un entero y corresponder a un producto existente.
+- ID_PERSONA: debe ser UUID válido y corresponder a un cliente existente.
+- LOCAL: debe ser entero y existir en los datos cargados.
+- FECHA_DESDE / FECHA_HASTA: deben ser fechas ISO-8601 entre 1906-01-01 y hoy,
+  y FECHA_DESDE no puede ser posterior a FECHA_HASTA.
+
+También calcula métricas resumen y guarda caché de consultas GET precomputadas.
 """
 
 import uuid
@@ -36,6 +46,32 @@ VALID_FILTERS = {
     "FECHA_HASTA",
 }
 
+MIN_FILTER_DATE = pd.Timestamp("1906-01-01")
+
+
+def _current_max_filter_date() -> pd.Timestamp:
+    return pd.Timestamp.now().normalize()
+
+
+def _validate_filter_date(value, name: str) -> pd.Timestamp:
+    """Valida formato y rango para FECHA_DESDE / FECHA_HASTA."""
+    try:
+        fecha = pd.to_datetime(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"El valor '{value}' no es una fecha ISO-8601 válida para {name}")
+
+    if fecha.normalize() < MIN_FILTER_DATE:
+        raise ValueError(
+            f"El valor '{value}' no es válido para {name}; debe ser posterior o igual a {MIN_FILTER_DATE.date()}"
+        )
+
+    if fecha.normalize() > _current_max_filter_date():
+        raise ValueError(
+            f"El valor '{value}' no es válido para {name}; no puede ser posterior a hoy"
+        )
+
+    return fecha
+
 
 def validate_filter_keys(filtros: dict) -> None:
     """Lanza ValueError si alguna clave de filtro no está en la especificación."""
@@ -66,9 +102,10 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
     Aplica cero o más filtros al DataFrame de ventas.
 
     filtros: dict como {"GENERO": "Femenino", "CANAL": "POS"}
-    Lanza ValueError con un mensaje legible si algún valor de filtro
-    no es válido — el llamador (main.py) convierte esto en el
-    formato de error 400 Bad Request requerido.
+
+    Cada filtro se valida antes de aplicarse. Si el valor no es válido se lanza
+    ValueError con un mensaje legible. El controlador en main.py convierte
+    ese ValueError en un error 400 Bad Request.
     """
     result = df
 
@@ -84,6 +121,11 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
             edad_buscada = int(valor)
         except (ValueError, TypeError):
             raise ValueError(f"El valor '{valor}' no es un número entero válido para EDAD")
+
+        if edad_buscada < 10 or edad_buscada > 120:
+            raise ValueError(
+                f"El valor '{valor}' no es válido para EDAD; debe estar entre 10 y 120"
+            )
 
         # Cálculo correcto de la edad: resta 1 de la diferencia de años naiva
         # si el cumpleaños aún no ocurrió este año, en lugar de una aproximación
@@ -109,12 +151,20 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
             sku = int(valor)
         except (ValueError, TypeError):
             raise ValueError(f"El valor '{valor}' no es un número entero válido para CODIGO_PRODUCTO")
+
+        if sku not in df["SKU"].values:
+            raise ValueError(f"El valor '{valor}' no corresponde a un CODIGO_PRODUCTO existente")
+
         result = result[result["SKU"] == sku]
 
     if "ID_PERSONA" in filtros:
         valor = filtros["ID_PERSONA"]
         if not _is_valid_uuid(valor):
             raise ValueError(f"El valor '{valor}' no es un UUID válido para ID_PERSONA")
+
+        if valor not in df["CODIGO CLIENTE"].values:
+            raise ValueError(f"El valor '{valor}' no corresponde a un cliente existente")
+
         result = result[result["CODIGO CLIENTE"] == valor]
 
     if "LOCAL" in filtros:
@@ -123,22 +173,22 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
             local = int(valor)
         except (ValueError, TypeError):
             raise ValueError(f"El valor '{valor}' no es un número entero válido para el ID de tienda")
+
+        # Validar que el local exista en los datos antes de filtrar.
+        if local not in result["LOCAL"].values:
+            raise ValueError(f"El valor '{valor}' no corresponde a un LOCAL existente")
+
         result = result[result["LOCAL"] == local]
 
+    fecha_desde = None
     if "FECHA_DESDE" in filtros:
-        valor = filtros["FECHA_DESDE"]
-        try:
-            fecha_desde = pd.to_datetime(valor)
-        except (ValueError, TypeError):
-            raise ValueError(f"El valor '{valor}' no es una fecha ISO-8601 válida para FECHA_DESDE")
+        fecha_desde = _validate_filter_date(filtros["FECHA_DESDE"], "FECHA_DESDE")
         result = result[result["FECHA"] >= fecha_desde]
 
     if "FECHA_HASTA" in filtros:
-        valor = filtros["FECHA_HASTA"]
-        try:
-            fecha_hasta = pd.to_datetime(valor)
-        except (ValueError, TypeError):
-            raise ValueError(f"El valor '{valor}' no es una fecha ISO-8601 válida para FECHA_HASTA")
+        fecha_hasta = _validate_filter_date(filtros["FECHA_HASTA"], "FECHA_HASTA")
+        if fecha_desde is not None and fecha_desde > fecha_hasta:
+            raise ValueError("FECHA_DESDE no puede ser posterior a FECHA_HASTA")
         result = result[result["FECHA"] <= fecha_hasta]
 
     return result

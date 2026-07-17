@@ -160,10 +160,34 @@ def _drop_invalid_uuid_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     return df, invalid_count
 
 
+def _drop_invalid_discount_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """
+    Elimina filas cuyo PORCENTAJE DESCUENTO está fuera del rango válido (0-1).
+    
+    Los descuentos válidos están normalizados entre 0 (sin descuento) y 1 (100% descuento).
+    Cualquier valor fuera de este rango (negativo o > 1) se considera inválido y la fila
+    es eliminada. Retorna el DataFrame limpio y el conteo de filas eliminadas.
+    """
+    if "PORCENTAJE DESCUENTO" not in df.columns:
+        return df, 0
+
+    # Crear máscara booleana: True para filas válidas (dentro del rango 0-1)
+    valid_mask = (df["PORCENTAJE DESCUENTO"] >= 0) & (df["PORCENTAJE DESCUENTO"] <= 1)
+    invalid_count = (~valid_mask).sum()
+
+    if invalid_count > 0:
+        logger.warning(f"Eliminadas {invalid_count} filas con PORCENTAJE DESCUENTO fuera de rango (0-1)")
+        df = df.loc[valid_mask].reset_index(drop=True)
+
+    return df, invalid_count
+
+
 def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
     """
     Lee el CSV original, reconstruye la verdadera estructura de campos de cada
-    fila en paralelo utilizando un grupo de hilos, y devuelve un DataFrame limpio.
+    fila en paralelo utilizando un grupo de hilos, y devuelve un DataFrame limpio
+    con múltiples validaciones aplicadas: rango de edad, UUID válido, descuentos
+    válidos (0-1), y eliminación de duplicados.
     """
     with open(csv_path, encoding="utf-8-sig", newline="") as f:
         reader = csv.reader(f, delimiter=",", quotechar='"')
@@ -224,6 +248,7 @@ def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
         df = df[valid_age_mask].reset_index(drop=True)
 
     df, invalid_uuid_count = _drop_invalid_uuid_rows(df)
+    df, invalid_discount_count = _drop_invalid_discount_rows(df)
     df, duplicate_count = _drop_duplicate_rows(df)
     if duplicate_count > 0:
         logger.warning(f"Eliminadas {duplicate_count} filas duplicadas")

@@ -71,6 +71,11 @@ Al iniciar, la aplicación ejecuta automáticamente, sin intervención manual:
      heredadas de una exportación previa). Esto se corrige fila por fila.
    - Este trabajo se distribuye en paralelo entre hasta 32 hilos
      (`ThreadPoolExecutor`), dado el volumen del archivo (3M+ filas).
+   - Se aplican validaciones durante la carga:
+     - Edades fuera de rango (10-120 años) se eliminan
+     - Códigos de cliente (CODIGO CLIENTE) inválidos (no-UUID) se eliminan
+     - Descuentos fuera de rango (0-1) se eliminan
+     - Filas duplicadas exactas se eliminan (mantiene la primera ocurrencia)
 
 3. **Valida** la estructura y tipos de datos (`app/validator.py`).
    - Si falta una columna obligatoria, la aplicación no inicia (falla
@@ -207,8 +212,10 @@ instantáneamente y no dependen de que el archivo de datos esté presente.
   como los cálculos estadísticos ocurren en memoria; no se genera una
   copia modificada del archivo de 3M+ filas.
 - **Validación de datos**: al iniciar, se valida que existan todas las
-  columnas esperadas y que los tipos de datos sean coherentes. Si falta
-  una columna requerida, la aplicación no inicia (falla rápido).
+  columnas esperadas y que los tipos de datos sean coherentes. Se eliminan
+  filas con: edades fuera de rango (10-120 años), códigos de cliente inválidos
+  (no-UUID), descuentos fuera de rango (0-1), y duplicados exactos.
+  Si falta una columna requerida, la aplicación no inicia (falla rápido).
 - **Validación de filtros**: tanto GET como POST rechazan nombres de
   consulta no permitidos con error 400 en el formato exigido por el enunciado.
 
