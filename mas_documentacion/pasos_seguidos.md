@@ -112,7 +112,7 @@ estadísticas) de forma aislada.
 
 ## Fase 6: Identificación del problema real — CSV con doble codificación
 
-Al continuar con pruebas y modificaciónes con este archiv de prueba,
+Al continuar con pruebas y modificaciónes con este archivo de prueba,
 se identificó la causa raíz de ambos errores anteriores: el archivo no
 estaba simplemente mal delimitado, sino que estaba **doblemente
 codificado**.
@@ -205,28 +205,7 @@ de la API manualmente a través de la documentación interactiva
 
 ---
 
-## Fase 11: Revisión del código de un integrante del equipo
-
-Un integrante del equipo compartió una implementación alternativa,
-basada en `Dask` en lugar de `pandas`/`threading`. Se revisó ese código
-en detalle para identificar qué partes podían aprovecharse:
-
-**Incorporado al proyecto:**
-- Un cálculo de edad más preciso (considerando si el cumpleaños ya
-  ocurrió en el año actual, en lugar de una división aproximada de días
-  entre 365).
-- Un mapeo más completo de valores de `GENERO`, incluyendo códigos
-  explícitos para `"Otro"` y `"No especificado"`.
-
-**Evaluado pero no incorporado**, con su justificación registrada en
-`DECISIONES_TECNICAS.md`:
-- La migración completa a Dask.
-- La carga del CSV asumiendo un formato limpio (no manejaba el problema
-  de doble codificación descrito en la Fase 6).
-
----
-
-## Fase 12: Automatización de la descarga del archivo
+## Fase 11: Automatización de la descarga del archivo
 
 A esta altura del desarrollo, surgió una duda sobre como debía funcionar
 el programa, ¿Debe el archivo de entrada descargarse automáticamente? La
@@ -251,7 +230,7 @@ Se desarrolló `downloader.py` en dos iteraciones:
 
 ---
 
-## Fase 13: Pruebas unitarias con pytest
+## Fase 12: Pruebas unitarias con pytest
 
 Se agregaron pruebas unitarias (`tests/test_stats.py`) cubriendo:
 - Cálculo correcto de cada estadística individual.
@@ -270,7 +249,7 @@ importaciones.
 
 ---
 
-## Fase 14: Documentación final
+## Fase 13: Documentación final
 
 Se completaron los archivos de documentación requeridos:
 - `README.md`: instrucciones de instalación, ejecución, descripción de
@@ -280,12 +259,7 @@ Se completaron los archivos de documentación requeridos:
   `POST`.
 - `DECISIONES_TECNICAS.md`: justificación de las decisiones de diseño y
   alternativas consideradas.
-- `PROCESO_DE_DESARROLLO.md` (este documento): registro cronológico del
+- `PROCESO_DE_DESARROLLO.md`: registro cronológico del
   proceso de trabajo.
-
-Se revisó también `.gitignore` para asegurar que el entorno virtual
-(`venv/`) y los archivos de datos descargados automáticamente
-(`data/*.csv`, `data/*.zip`, `data/*.gz`) no se incluyan en el
-repositorio, dado su tamaño y su naturaleza generada/descargable.
 
 ---

@@ -41,7 +41,7 @@ proyecto no necesita.
 
 **Decisión: pandas**
 
-Un compañero de grupo propuso una implementación alternativa usando
+Inicialmente se propuso una implementación alternativa usando
 **Dask** (`dask.dataframe`), que permite operaciones perezosas
 (*lazy evaluation*) y paralelización automática mediante un
 planificador de tareas interno.
@@ -145,17 +145,8 @@ descartó porque:
 **Decisión: descarga paralela por rangos de bytes (`Range` HTTP), con
 respaldo a descarga de un solo flujo**
 
-Se evaluó usar la librería `gdown` de forma directa (`gdown.download(url, dest)`),
-que resuelve automáticamente la página de confirmación de Google Drive
-para archivos grandes.
-
-**Por qué no se usó solo `gdown`:** aunque `gdown` resuelve correctamente
-el problema de la página de confirmación, realiza la descarga en un único
-flujo secuencial, sin paralelismo. Esto no satisface el requisito del
-enunciado de usar programación paralela también en la etapa de descarga.
-
-**Solución adoptada:** se implementó manualmente la resolución del enlace
-de Google Drive (extracción del token de confirmación desde las cookies o
+Se implementó manualmente la resolución del enlacede Google Drive 
+(extracción del token de confirmación desde las cookies o
 el HTML de advertencia), seguida de una verificación de si el servidor
 soporta solicitudes `Range`. Si las soporta, el archivo se descarga
 dividido en partes simultáneas entre hasta 32 hilos; si no las soporta,
