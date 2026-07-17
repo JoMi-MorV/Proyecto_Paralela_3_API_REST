@@ -15,7 +15,7 @@ filtros opcionales.
 1. Clonar el repositorio:
 ```bash
    git clone https://github.com/JoMi-MorV/Proyecto_Paralela_3_API_REST
-   cd paralela3
+   cd Proyecto_Paralela_3_API_REST
 ```
 
 2. Crear y activar un entorno virtual:
