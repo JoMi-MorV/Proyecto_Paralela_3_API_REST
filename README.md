@@ -97,12 +97,17 @@ http://127.0.0.1:8000/docs
 ## Endpoints
 
 ### Base
+```
 /v1/estadisticas/ventas
+```
 
-### GET — métricas precomputadas con filtros opcionales (query params)
+### GET — estadísticas con filtros por query params (opcionales)
+
+```
 GET /v1/estadisticas/ventas
 GET /v1/estadisticas/ventas?CANAL=POS
 GET /v1/estadisticas/ventas?GENERO=Femenino&LOCAL=1999
+```
 
 **Ejemplo con curl:**
 ```bash
@@ -123,8 +128,10 @@ curl "http://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
 ```
 
 ### POST — consulta dinámica con filtros en el body
+```
 POST /v1/estadisticas/ventas
 Content-Type: application/json
+```
 
 **Ejemplo con curl:**
 ```bash
