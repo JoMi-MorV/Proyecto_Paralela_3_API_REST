@@ -42,7 +42,7 @@ asegurarse de que la carpeta se encuentre disponible para descargar
 de forma pública, de otra manera, se debe colocar el archivo (ya sea
 .csv o .gc/.zip, etc.) en la carpeta:
 
-paralela3/data/   
+```paralela3/data/``` 
 
 ## Ejecución
 
@@ -206,6 +206,7 @@ instantáneamente y no dependen de que el archivo de datos esté presente.
   consulta no permitidos con error 400 en el formato exigido por el enunciado.
 
 ## Estructura del proyecto
+```
 Proyecto_Paralela_3_API_REST/
 ├── app/
 │   ├── main.py         # Endpoints GET/POST y arranque de la app
@@ -223,7 +224,7 @@ Proyecto_Paralela_3_API_REST/
 ├── pytest.ini
 ├── requirements.txt
 └── README.md
-
+```
 ## Autor
 
 Luna León Chandia, Mei-ying Mamani León, José Miguel Vargas Moraga
