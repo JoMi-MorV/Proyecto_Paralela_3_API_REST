@@ -42,7 +42,7 @@ asegurarse de que la carpeta se encuentre disponible para descargar
 de forma pública, de otra manera, se debe colocar el archivo (ya sea
 .csv o .gc/.zip, etc.) en la carpeta:
 
-```paralela3/data/``` 
+```Proyecto_Paralela_3_API_REST/data/``` 
 
 ## Ejecución
 
