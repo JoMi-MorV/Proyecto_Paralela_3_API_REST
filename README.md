@@ -42,9 +42,7 @@ asegurarse de que la carpeta se encuentre disponible para descargar
 de forma pública, de otra manera, se debe colocar el archivo (ya sea
 .csv o .gc/.zip, etc.) en la carpeta:
 
-paralela3/
-└─── data/ 
-    └── Cargar a esta carpeta el archivo ventas_completas.csv    
+paralela3/data/   
 
 ## Ejecución
 
