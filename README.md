@@ -15,15 +15,12 @@ filtros opcionales.
 1. Clonar el repositorio:
 ```bash
    git clone https://github.com/JoMi-MorV/Proyecto_Paralela_3_API_REST
-   cd Proyecto_Paralela_3_API_REST
+   cd paralela3
 ```
 
 2. Crear y activar un entorno virtual:
 ```bash
-   python -m venv venv
-
-   # Windows
-   venv\Scripts\activate
+   python3 -m venv venv
 
    # Mac/Linux
    source venv/bin/activate
@@ -45,7 +42,7 @@ asegurarse de que la carpeta se encuentre disponible para descargar
 de forma pública, de otra manera, se debe colocar el archivo (ya sea
 .csv o .gc/.zip, etc.) en la carpeta:
 
-Proyecto_Paralela_3_API_REST/
+paralela3/
 └─── data/ 
     └── Cargar a esta carpeta el archivo ventas_completas.csv    
 
@@ -62,21 +59,13 @@ El servidor queda disponible en `http://127.0.0.1:8000`.
 Al iniciar, la aplicación ejecuta automáticamente, sin intervención manual:
 
 1. **Descarga** el archivo desde Google Drive (`app/downloader.py`).
-   - Se descarga en paralelo usando hasta 32 hilos mediante solicitudes
-     HTTP por rangos de bytes (`Range`), dividiendo el archivo en partes
-     descargadas simultáneamente.
-   - Si el servidor resuelto no admite solicitudes por rangos, se recurre
-     automáticamente a una descarga en un solo flujo (sin paralelismo),
-     registrando esta situación en los logs.
+   - Si el archivo ya existe localmente en `data/`, la descarga se omite
+     en ejecuciones posteriores.
    - Si el archivo descargado es un `.zip`, `.gz` o `.tar.gz`, se
      descomprime automáticamente y se localiza `ventas_completas.csv`
      dentro del contenido extraído.
-   - Si el archivo ya existe localmente en `data/`, la descarga se omite
-     en ejecuciones posteriores.
-   - Si el archivo no se encuentra localmente en `data/`, y el Google Drive
-     donde se encuentra el archivo no se puede acceder de forma pública, la
-     aplicación se cerrará automaticamente, ya que no tiene archivos para 
-	 leer.
+   - Si el archivo no se encuentra localmente en `data/` y la descarga falla,
+     la aplicación se cierra automáticamente.
 
 2. **Reconstruye y carga** el CSV en memoria (`app/data_loader.py`).
    - El archivo fuente usa un formato de doble codificación no estándar
@@ -89,6 +78,13 @@ Al iniciar, la aplicación ejecuta automáticamente, sin intervención manual:
    - Si falta una columna obligatoria, la aplicación no inicia (falla
      rápido). Valores individuales inválidos generan advertencias en los
      logs, sin detener el arranque.
+
+4. **Precomputa métricas globales** (`app/stats.py` → `StatsStore`).
+   - Al terminar la carga, se calculan las estadísticas sin filtros y se
+     almacenan en memoria para consultas GET.
+   - Las consultas GET con filtros usan una caché en memoria que se va
+     poblando según se solicitan combinaciones de filtros.
+   - Las consultas POST siempre se calculan de forma dinámica.
 
 Revisa la consola al iniciar el servidor para confirmar la cantidad de
 filas descargadas, reconstruidas y cargadas, junto con cualquier
@@ -105,7 +101,7 @@ http://127.0.0.1:8000/docs
 ### Base
 /v1/estadisticas/ventas
 
-### GET — estadísticas con filtros por query params (opcionales)
+### GET — métricas precomputadas con filtros opcionales (query params)
 GET /v1/estadisticas/ventas
 GET /v1/estadisticas/ventas?CANAL=POS
 GET /v1/estadisticas/ventas?GENERO=Femenino&LOCAL=1999
@@ -128,7 +124,7 @@ curl "http://127.0.0.1:8000/v1/estadisticas/ventas?CANAL=POS"
 }
 ```
 
-### POST — estadísticas con filtros dinámicos en el body
+### POST — consulta dinámica con filtros en el body
 POST /v1/estadisticas/ventas
 Content-Type: application/json
 
@@ -190,17 +186,15 @@ Todas las respuestas de error siguen este formato:
 pytest tests/ -v
 ```
 
-Las pruebas cubren `apply_filters()` y `compute_stats()` de forma
-aislada, usando DataFrames de prueba pequeños en vez del CSV real, por
-lo que se ejecutan instantáneamente y no dependen de que el archivo de
-datos esté presente.
+Las pruebas cubren la lógica de `stats.py` y los endpoints HTTP (`test_api.py`)
+usando DataFrames de prueba pequeños en vez del CSV real, por lo que se ejecutan
+instantáneamente y no dependen de que el archivo de datos esté presente.
 
 ## Decisiones técnicas
 
-- **Descarga paralela por rangos de bytes**: el archivo se descarga
-  dividido en partes simultáneas usando hasta 32 hilos, con reintentos
-  y espera exponencial por parte fallida. Si el servidor no admite esto,
-  se usa una descarga en un solo flujo como respaldo.
+- **Métricas precomputadas (GET)**: al iniciar se calculan las estadísticas
+  globales y se almacenan en `StatsStore`. Las consultas GET con filtros
+  se resuelven desde caché en memoria; POST siempre calcula en tiempo real.
 - **Reconstrucción del CSV en paralelo**: dado el formato no estándar
   del archivo fuente (ver `data_loader.py`), cada fila debe corregirse
   antes de ser cargada. Este trabajo se distribuye entre hasta 32 hilos.
@@ -210,19 +204,23 @@ datos esté presente.
 - **Validación de datos**: al iniciar, se valida que existan todas las
   columnas esperadas y que los tipos de datos sean coherentes. Si falta
   una columna requerida, la aplicación no inicia (falla rápido).
+- **Validación de filtros**: tanto GET como POST rechazan nombres de
+  consulta no permitidos con error 400 en el formato exigido por el enunciado.
 
 ## Estructura del proyecto
 Proyecto_Paralela_3_API_REST/
 ├── app/
 │   ├── main.py         # Endpoints GET/POST y arranque de la app
-│   ├── downloader.py   # Descarga paralela + extracción del archivo
+│   ├── schemas.py      # Modelos Pydantic para Swagger
+│   ├── downloader.py   # Descarga y extracción del archivo
 │   ├── data_loader.py  # Reconstrucción y carga del CSV en paralelo
 │   ├── validator.py    # Validación de columnas/tipos
 │   ├── stats.py        # Filtros y cálculo de estadísticas
 │   └── errors.py       # Formato estándar de errores
 ├── data/                # El CSV se descarga aquí automáticamente
 ├── tests/
-│   └── test_stats.py
+│   ├── test_stats.py
+│   └── test_api.py
 ├── datos.json            # Datos de prueba y ejemplos de solicitudes
 ├── pytest.ini
 ├── requirements.txt
@@ -230,4 +228,4 @@ Proyecto_Paralela_3_API_REST/
 
 ## Autor
 
-[Nombres de los integrantes del grupo]
+Luna León Chandia, Mei-ying Mamani León, José Miguel Vargas Moraga

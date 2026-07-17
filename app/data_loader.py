@@ -1,7 +1,10 @@
 """
 data_loader.py
 
-Carga el CSV de ventas de Cruz Morada en la memoria al iniciar la aplicación.
+Carga y prepara el CSV de ventas de Cruz Morada en memoria al iniciar la
+aplicación, sin intervención manual. El módulo reconstruye filas con un
+formato no estándar, aplica validaciones básicas y deja los datos listos para
+ser consumidos por la API REST.
 
 IMPORTANTE: este CSV utiliza un formato de doble codificación no estándar.
 El delimitador real es ';', con los campos individuales envueltos en comillas dobles
@@ -24,6 +27,7 @@ ya que escribir un segundo archivo de 3 millones de filas solo añadiría un tie
 
 import csv
 import logging
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
@@ -74,7 +78,10 @@ def _reconstruct_row(outer_row: list) -> list | None:
     joined = ",".join(outer_row)
 
     # Ahora divide usando el delimitador REAL y elimina los caracteres de comillas sobrantes
-    fields = [f.strip().strip('"') for f in joined.split(";")]
+    parts = joined.split(";")
+    fields = []
+    for part in parts:
+        fields.append(part.strip().strip('"'))
     return fields
 
 
@@ -94,6 +101,65 @@ def _reconstruct_chunk(rows: list) -> list:
     return result
 
 
+def _drop_duplicate_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """
+    Elimina filas duplicadas comparando todos los valores de la fila.
+    Para las columnas de texto, se elimina el whitespace extra alrededor
+    de los valores para evitar falsos positivos por diferencias de formato.
+    """
+    normalized_df = df.copy()
+
+    for col in normalized_df.select_dtypes(include=["object"]).columns:
+        normalized_df[col] = normalized_df[col].astype("string").str.strip()
+
+    duplicate_mask = normalized_df.duplicated(keep="first")
+    duplicate_count = int(duplicate_mask.sum())
+
+    if duplicate_count > 0:
+        normalized_df = normalized_df.loc[~duplicate_mask].reset_index(drop=True)
+
+    return normalized_df, duplicate_count
+
+
+def _is_valid_uuid(value) -> bool:
+    """
+    Valida que un valor tenga el formato de UUID canónico
+    (8-4-4-4-12 hexadecimales) y no sea vacío o nulo.
+    """
+    if pd.isna(value):
+        return False
+
+    text = str(value).strip()
+    if not text:
+        return False
+
+    try:
+        uuid.UUID(text)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def _drop_invalid_uuid_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """
+    Elimina filas cuyo CODIGO CLIENTE no cumple con el formato UUID válido.
+    """
+    if "CODIGO CLIENTE" not in df.columns:
+        return df, 0
+
+    valid_mask = []
+    for value in df["CODIGO CLIENTE"]:
+        valid_mask.append(_is_valid_uuid(value))
+
+    invalid_count = sum(1 for is_valid in valid_mask if not is_valid)
+
+    if invalid_count > 0:
+        logger.warning(f"Eliminadas {invalid_count} filas con CODIGO CLIENTE inválido")
+        df = df.loc[valid_mask].reset_index(drop=True)
+
+    return df, invalid_count
+
+
 def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
     """
     Lee el CSV original, reconstruye la verdadera estructura de campos de cada
@@ -111,10 +177,11 @@ def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
     )
 
     # Divide las filas originales en lotes, enviando un lote por cada tarea de hilo.
-    batches = [
-        raw_rows[i:i + CHUNK_SIZE]
-        for i in range(0, total_rows, CHUNK_SIZE)
-    ]
+    batches = []
+    start = 0
+    while start < total_rows:
+        batches.append(raw_rows[start:start + CHUNK_SIZE])
+        start += CHUNK_SIZE
 
     reconstructed_rows = []
     with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
@@ -140,6 +207,26 @@ def load_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
 
     for col in NUMERIC_FLOAT_COLUMNS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Limpiar filas con edades fuera de rango razonable (10-120 años).
+    # Calculamos la edad en años usando la diferencia entre FECHA y FECHA_NACIMIENTO.
+    if "FECHA" in df.columns and "FECHA_NACIMIENTO" in df.columns:
+        age_days = (df["FECHA"] - df["FECHA_NACIMIENTO"]).dt.days
+        age_years = (age_days // 365).astype(float)
+
+        # Considerar solo filas donde la edad pudo calcularse (no NaN);
+        # filas con FECHA_NACIMIENTO o FECHA inválidas se mantienen para
+        # que la validación posterior las detecte si es necesario.
+        valid_age_mask = age_years.isna() | age_years.between(10, 120)
+        removed = (~valid_age_mask).sum()
+        if removed > 0:
+            logger.warning(f"Eliminadas {removed} filas por edad fuera de rango (10-120)")
+        df = df[valid_age_mask].reset_index(drop=True)
+
+    df, invalid_uuid_count = _drop_invalid_uuid_rows(df)
+    df, duplicate_count = _drop_duplicate_rows(df)
+    if duplicate_count > 0:
+        logger.warning(f"Eliminadas {duplicate_count} filas duplicadas")
 
     logger.info(f"Carga completa: {len(df)} filas cargadas desde '{csv_path}'")
     return df

@@ -52,12 +52,18 @@ def validate_data(df: pd.DataFrame) -> dict:
     report = {"errors": [], "warnings": [], "rows_checked": len(df)}
 
     # 1. Verificar que existe cada columna requerida
-    missing = [col for col in EXPECTED_COLUMNS if col not in df.columns]
+    missing = []
+    for col in EXPECTED_COLUMNS:
+        if col not in df.columns:
+            missing.append(col)
     if missing:
         report["errors"].append(f"Columnas faltantes: {missing}")
 
     # 2. Avisar sobre columnas extra inesperadas (no es fatal, solo se registra)
-    extra = [col for col in df.columns if col not in EXPECTED_COLUMNS]
+    extra = []
+    for col in df.columns:
+        if col not in EXPECTED_COLUMNS:
+            extra.append(col)
     if extra:
         report["warnings"].append(f"Columnas no esperadas encontradas: {extra}")
 
@@ -71,14 +77,20 @@ def validate_data(df: pd.DataFrame) -> dict:
         series = df[col]
 
         if expected_type == "integer":
-            bad = series[~series.apply(_is_valid_int)]
+            invalid_mask = []
+            for value in series:
+                invalid_mask.append(not _is_valid_int(value))
+            bad = series[invalid_mask]
             if len(bad) > 0:
                 report["warnings"].append(
                     f"{len(bad)} valores no enteros en columna '{col}'"
                 )
 
         elif expected_type == "float":
-            bad = series[~series.apply(_is_valid_float)]
+            invalid_mask = []
+            for value in series:
+                invalid_mask.append(not _is_valid_float(value))
+            bad = series[invalid_mask]
             if len(bad) > 0:
                 report["warnings"].append(
                     f"{len(bad)} valores no numéricos en columna '{col}'"
@@ -114,6 +126,14 @@ def validate_data(df: pd.DataFrame) -> dict:
             report["warnings"].append(
                 f"{out_of_range} filas con PORCENTAJE DESCUENTO fuera de rango (0-1)"
             )
+
+    normalized_df = df.copy()
+    for col in normalized_df.select_dtypes(include=["object"]).columns:
+        normalized_df[col] = normalized_df[col].astype("string").str.strip()
+
+    duplicate_rows = normalized_df.duplicated(keep="first").sum()
+    if duplicate_rows > 0:
+        report["warnings"].append(f"{duplicate_rows} filas duplicadas detectadas")
 
     return report
 

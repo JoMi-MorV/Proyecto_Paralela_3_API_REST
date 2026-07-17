@@ -1,15 +1,14 @@
 """
 stats.py
 
-Maneja dos responsabilidades para la API de estadísticas de ventas de Cruz Morada:
-1. apply_filters()  -> filtra el DataFrame de ventas según criterios del usuario
-2. compute_stats()  -> calcula el resumen estadístico requerido sobre los datos filtrados
-
-Tanto los endpoints GET como POST en main.py llaman a estas dos funciones,
-por lo que la lógica de filtrado y de cálculo existe en un solo lugar.
+Maneja el filtrado, cálculo y almacenamiento de estadísticas de ventas:
+1. apply_filters()   -> filtra el DataFrame según criterios del usuario
+2. compute_stats()   -> calcula el resumen estadístico requerido
+3. StatsStore        -> precomputa métricas globales para GET y cachea consultas filtradas
 """
 
-from datetime import datetime
+import uuid
+
 import pandas as pd
 
 
@@ -25,6 +24,41 @@ GENERO_MAP = {
 }
 
 VALID_CANALES = {"POS", "WEB", "APP", "CCT", "APR", "WPR"}
+
+VALID_FILTERS = {
+    "GENERO",
+    "EDAD",
+    "CANAL",
+    "CODIGO_PRODUCTO",
+    "ID_PERSONA",
+    "LOCAL",
+    "FECHA_DESDE",
+    "FECHA_HASTA",
+}
+
+
+def validate_filter_keys(filtros: dict) -> None:
+    """Lanza ValueError si alguna clave de filtro no está en la especificación."""
+    invalid = set(filtros.keys()) - VALID_FILTERS
+    if invalid:
+        nombre = "', '".join(sorted(invalid))
+        raise ValueError(f"La consulta '{nombre}' no es un valor permitido")
+
+
+def _is_valid_uuid(value) -> bool:
+    """Valida que un valor tenga formato UUID canónico."""
+    if pd.isna(value):
+        return False
+
+    text = str(value).strip()
+    if not text:
+        return False
+
+    try:
+        uuid.UUID(text)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 
 def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
@@ -79,6 +113,8 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
 
     if "ID_PERSONA" in filtros:
         valor = filtros["ID_PERSONA"]
+        if not _is_valid_uuid(valor):
+            raise ValueError(f"El valor '{valor}' no es un UUID válido para ID_PERSONA")
         result = result[result["CODIGO CLIENTE"] == valor]
 
     if "LOCAL" in filtros:
@@ -86,7 +122,7 @@ def apply_filters(df: pd.DataFrame, filtros: dict) -> pd.DataFrame:
         try:
             local = int(valor)
         except (ValueError, TypeError):
-            raise ValueError(f"El valor '{valor}' no es un número entero válido para LOCAL")
+            raise ValueError(f"El valor '{valor}' no es un número entero válido para el ID de tienda")
         result = result[result["LOCAL"] == local]
 
     if "FECHA_DESDE" in filtros:
@@ -138,3 +174,34 @@ def compute_stats(df: pd.DataFrame, amount_column: str = "MONTO APLICADO") -> di
         "mediana": round(float(values.median()), 2),
         "desviacion_estandar": round(float(values.std()), 2),
     }
+
+
+class StatsStore:
+    """
+    Almacén de métricas precomputadas para el endpoint GET.
+
+    Al iniciar la aplicación se calculan las estadísticas globales (sin filtros).
+    Las consultas GET con filtros se resuelven desde una caché en memoria que se
+    va poblando a medida que se solicitan combinaciones de filtros.
+    """
+
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+        self._global_stats = compute_stats(df)
+        self._cache: dict[tuple, dict] = {}
+
+    @property
+    def global_stats(self) -> dict:
+        return self._global_stats
+
+    def get_precomputed(self, filtros: dict) -> dict:
+        """Devuelve estadísticas precomputadas para los filtros indicados."""
+        if not filtros:
+            return self._global_stats
+
+        key = tuple(sorted(filtros.items()))
+        if key not in self._cache:
+            filtered = apply_filters(self._df, filtros)
+            self._cache[key] = compute_stats(filtered)
+
+        return self._cache[key]
